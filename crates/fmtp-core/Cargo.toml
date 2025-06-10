@@ -1,0 +1,15 @@
+[package]
+name = "fmtp-core"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+anyhow = "1.0.98"
+statig = { git = "https://github.com/mdeloof/statig", rev = "c3e5969759af96afa33493a5cf1be8234a0bbfc7" }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+zerocopy = { version = "0.8.25", features = ["derive"] }
+
+[lints]
+workspace = true

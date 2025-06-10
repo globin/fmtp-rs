@@ -1,0 +1,20 @@
+[package]
+name = "fmtp-tokio"
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+
+[[bin]]
+name = "client"
+
+[dependencies]
+fmtp-core = { path = "../fmtp-core" }
+
+anyhow = "1.0.98"
+tokio = { version = "1.45.0", features = ["full"] }
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+uuid = { version = "1.17.0", features = ["v4"] }
+
+[lints]
+workspace = true
