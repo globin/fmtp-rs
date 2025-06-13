@@ -1,3 +1,8 @@
+//! Example FMTP client using Tokio runtime.
+//!
+//! This example demonstrates how to set up an FMTP client, handle connection events,
+//! and send user commands based on stdin input.
+
 use std::io::BufReader;
 use std::io::Read as _;
 use std::io::stdin;
@@ -123,7 +128,7 @@ async fn main() -> anyhow::Result<()> {
         Ok::<_, anyhow::Error>(())
     });
 
-    client.run(None).await?;
+    client.run_client().await?;
 
     Ok(())
 }

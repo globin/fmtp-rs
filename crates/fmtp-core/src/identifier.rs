@@ -19,9 +19,8 @@ impl FmtpIdentifier {
     /// # Arguments
     /// * `id` - The identifier bytes. Must be 1-32 bytes long and contain only ASCII characters.
     ///
-    /// # Returns
-    /// * `Ok(FmtpIdentifier)` if the input is valid
-    /// * `Err` if the input is empty, too long, or contains non-ASCII characters
+    /// # Errors
+    /// Returns [`Err`] if the input is empty, too long, or contains non-ASCII characters
     pub fn new(id: impl Into<Vec<u8>>) -> anyhow::Result<Self> {
         let id = id.into();
         if id.is_empty() || id.len() > 32 {

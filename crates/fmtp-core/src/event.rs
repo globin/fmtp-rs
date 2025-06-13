@@ -11,20 +11,20 @@ use crate::{Config, FmtpMessage, FmtpPacket, FmtpType};
 #[derive(Debug)]
 pub enum UserCommand {
     /// Request to establish an FMTP connection (MT-CON service primitive).
-    ///
-    /// # Arguments
-    /// * `id` - The identifier of the connection configuration to use
-    Setup { id: String },
+    Setup {
+        /// The identifier of the connection configuration to use
+        id: String,
+    },
 
     /// Request to stop an existing FMTP Association and release the underlying
     /// connection (MT-DIS service primitive).
     Disconnect,
 
     /// Request to send a message over an existing FMTP Association (MT-DATA service primitive).
-    ///
-    /// # Arguments
-    /// * `msg` - The message to send
-    Data { msg: FmtpMessage },
+    Data {
+        /// The message to send
+        msg: FmtpMessage,
+    },
 
     /// Request to stop an existing FMTP Association without releasing the
     /// underlying connection (MT-STOP service primitive).
@@ -43,7 +43,10 @@ pub enum UserCommand {
 #[derive(Debug)]
 pub enum Event {
     /// A TCP transport connection establishment indication has been received
-    RSetup { now: Instant },
+    RSetup {
+        /// The time when the event occurred
+        now: Instant,
+    },
 
     /// A TCP transport connection release indication has been received
     RDisconnect,
@@ -53,46 +56,90 @@ pub enum Event {
 
     /// An ACCEPT identification message has been received
     /// from the remote peer
-    RAccept { now: Instant },
+    RAccept {
+        /// The time when the event occurred
+        now: Instant,
+    },
+
     /// An identification message containing a valid identification
     /// value for the peer MT-User has been received
-    RIdValid { now: Instant, id: String },
+    RIdValid {
+        /// The time when the event occurred
+        now: Instant,
+        /// The identifier of the connection
+        id: String,
+    },
+
     /// An identification message which fails the identification
     /// value validation test has been received.
     RIdInvalid,
+
     /// An [`FmtpMessage`] (Operational or Operator message
     /// type) has been received from the remote user
-    RData { now: Instant, msg: FmtpMessage },
+    RData {
+        /// The time when the event occurred
+        now: Instant,
+        /// The received message
+        msg: FmtpMessage,
+    },
     /// A HEARTBEAT message has been received from the remote system
-    RHeartbeat { now: Instant },
+    RHeartbeat {
+        /// The time when the event occurred
+        now: Instant,
+    },
+
     /// A SHUTDOWN message has been received from the remote system
-    RShutdown { now: Instant },
+    RShutdown {
+        /// The time when the event occurred
+        now: Instant,
+    },
+
     /// A STARTUP message has been received from the remote system
-    RStartup { now: Instant },
+    RStartup {
+        /// The time when the event occurred
+        now: Instant,
+    },
 
     /// Timer Ti (identification timeout) has expired
     TiTimeout,
 
     /// Timer Tr (response timeout) has expired
-    TrTimeout { now: Instant },
+    TrTimeout {
+        /// The time when the event occurred
+        now: Instant,
+    },
 
     /// Timer Ts (send heartbeat timeout) has expired
-    TsTimeout { now: Instant },
+    TsTimeout {
+        /// The time when the event occurred
+        now: Instant,
+    },
 
     /// Data transfer requested by user (MT-DATA service primitive).
-    LData { now: Instant, msg: FmtpMessage },
+    LData {
+        /// The time when the event occurred
+        now: Instant,
+        /// The message to send
+        msg: FmtpMessage,
+    },
 
     /// Shutdown requested by user (MT-STOP service primitive)
-    LShutdown { now: Instant },
+    LShutdown {
+        /// The time when the event occurred
+        now: Instant,
+    },
 
     /// Startup requested by user (MT-ASSOC service primitive)
-    LStartup { now: Instant },
+    LStartup {
+        /// The time when the event occurred
+        now: Instant,
+    },
 
     /// Request to establish an FMTP connection (MT-CON service primitive).
-    ///
-    /// # Arguments
-    /// * `id` - The identifier of the connection configuration to use
-    LSetup { id: String },
+    LSetup {
+        /// The identifier of the connection configuration to use
+        id: String,
+    },
 
     /// Request to stop an existing FMTP Association and release the underlying
     /// connection (MT-DIS service primitive).
@@ -101,6 +148,9 @@ pub enum Event {
 impl Event {
     /// Translates an incoming [`FmtpPacket`] to an [`Event`], 0 bytes
     /// length will be handled as `RDisconnect`.
+    ///
+    /// # Errors
+    /// Returns an error if the packet cannot be converted to an [`FmtpMessage`], or if an unexpected system packet payload is encountered.
     pub fn from_incoming_packet(
         bytes: usize,
         packet: FmtpPacket,

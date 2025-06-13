@@ -14,13 +14,66 @@ use tokio::{
 };
 use tracing::{debug, error};
 
+/// Events emitted by an FMTP connection
+///
+/// These events represent state changes, connection establishment,
+/// and data reception in an FMTP connection.
 #[derive(Debug)]
 pub enum ConnectionEvent {
+    /// The connection's state has changed
     StateChanged(State),
+    /// The connection's identifier has been determined
     ConnectionIdDetermined(String),
+    /// A message has been received from the remote peer
     DataReceived(FmtpMessage),
 }
 
+/// An asynchronous FMTP connection
+///
+/// This struct represents a single FMTP connection, which can operate in either client
+/// or server mode. It handles the protocol state machine, connection establishment,
+/// and message exchange.
+///
+/// # Examples
+///
+/// ```no_run
+/// use fmtp_tokio::Connection;
+/// use fmtp_core::{Config, FmtpIdentifier, ConnectionConfig, Role, Target, UserCommand};
+/// use std::time::Duration;
+/// use tokio::sync::mpsc::channel;
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     let config = Config {
+///         connections: [
+///             (
+///                 "fmtp-client".to_string(),
+///                 ConnectionConfig {
+///                     connect_retry_timer: None,
+///                     role: Role::Client,
+///                     initial_target: Target::DataReady,
+///                     remote_addresses: vec!["127.0.0.1:8500".parse().unwrap()],
+///                     remote_id: FmtpIdentifier::new(b"SERVER")?,
+///                     local_id: FmtpIdentifier::new(b"CLIENT")?,
+///                     ti: Duration::from_secs(30),
+///                     ts: Duration::from_secs(15),
+///                     tr: Duration::from_secs(40),
+///                 },
+///             ),
+///         ]
+///         .into(),
+///         bind_address: Some("127.0.0.1:8500".parse().unwrap()),
+///         server_ti: Some(Duration::from_secs(30)),
+///     };
+///
+///     let (ev_tx, mut ev_rx) = channel(1024);
+///     let (cmd_tx, cmd_rx) = channel(1024);
+///
+///     let mut conn = Connection::new(config, Some("fmtp-client".to_string()), ev_tx, cmd_rx)?;
+///     conn.run_client().await?;
+///     Ok(())
+/// }
+/// ```
 #[derive(Debug)]
 pub struct Connection {
     inner: CoreConnection,
@@ -28,7 +81,20 @@ pub struct Connection {
     tx: Sender<ConnectionEvent>,
     rx: Receiver<UserCommand>,
 }
+
 impl Connection {
+    /// Creates a new FMTP connection
+    ///
+    /// # Arguments
+    ///
+    /// * `cfg` - The FMTP configuration
+    /// * `connection_id` - Optional identifier for this connection
+    /// * `tx` - Channel sender for connection events
+    /// * `rx` - Channel receiver for user commands
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection cannot be created with the given configuration
     pub fn new(
         cfg: Config,
         connection_id: Option<String>,
@@ -44,6 +110,19 @@ impl Connection {
         })
     }
 
+    /// Attempts to establish a TCP connection to a remote FMTP peer
+    ///
+    /// # Arguments
+    ///
+    /// * `connection` - The identifier of the connection configuration to use
+    ///
+    /// # Returns
+    ///
+    /// Returns a tuple of the remote socket address and the established TCP stream
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection cannot be established with any of the configured addresses
     pub async fn connect(&mut self, connection: &str) -> anyhow::Result<(SocketAddr, TcpStream)> {
         if let Some(remote_addresses) = self
             .inner
@@ -84,6 +163,15 @@ impl Connection {
         Err(anyhow!("Could not connect to any address: {connection}"))
     }
 
+    /// Runs the connection in server mode with an established TCP stream
+    ///
+    /// # Arguments
+    ///
+    /// * `socket` - The TCP stream for an accepted connection
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection fails during operation
     pub async fn run_server(&mut self, socket: TcpStream) -> anyhow::Result<()> {
         self.inner.handle_with_context(
             &Event::RSetup {
@@ -94,6 +182,14 @@ impl Connection {
         self.run(Some(socket)).await
     }
 
+    /// Runs the connection in client mode
+    ///
+    /// This method will attempt to establish a connection to the remote peer
+    /// and then handle the FMTP protocol exchange.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the connection fails during operation
     pub async fn run_client(&mut self) -> anyhow::Result<()> {
         self.run(None).await
     }
@@ -138,7 +234,7 @@ impl Connection {
         clippy::too_many_lines,
         reason = "needs refactoring, but hard to split the select"
     )]
-    pub async fn run(&mut self, mut socket: Option<TcpStream>) -> anyhow::Result<()> {
+    async fn run(&mut self, mut socket: Option<TcpStream>) -> anyhow::Result<()> {
         let mut buffer = [0; 10240];
         let mut state = State::Idle {};
         let mut id = None;

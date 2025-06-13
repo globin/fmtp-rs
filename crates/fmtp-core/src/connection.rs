@@ -1,3 +1,8 @@
+#![expect(
+    missing_docs,
+    reason = "state machine macro does not support doc comments"
+)]
+
 use std::{
     collections::VecDeque,
     ops::{Deref, DerefMut},
@@ -76,6 +81,12 @@ impl DerefMut for Connection {
     }
 }
 impl Connection {
+    /// Creates a new FMTP connection state machine.
+    ///
+    /// # Arguments
+    /// * `config` - The FMTP configuration.
+    /// * `ctx` - The connection context for managing queues.
+    /// * `id` - Optional identifier for the connection, necessary for client connections.
     pub fn new(config: Config, ctx: &mut ConnectionContext, id: Option<String>) -> Self {
         let sm = ConnectionState {
             config,
@@ -88,6 +99,16 @@ impl Connection {
         Self(sm)
     }
 
+    /// Handles a remote FMTP packet by parsing it and dispatching the corresponding event to the state machine.
+    ///
+    /// # Arguments
+    /// * `bytes` - The raw bytes of the received FMTP packet.
+    /// * `received` - The number of bytes received.
+    /// * `now` - The current time.
+    /// * `ctx` - The connection context for managing queues.
+    ///
+    /// # Errors
+    /// Returns an error if the packet cannot be parsed or if the event conversion fails.
     pub fn handle_remote_packet(
         &mut self,
         bytes: &[u8],

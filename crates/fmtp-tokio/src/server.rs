@@ -17,20 +17,92 @@ use uuid::Uuid;
 
 use crate::{Connection, connection::ConnectionEvent};
 
+/// Represents the state of a connection managed by the FMTP server
+///
+/// This structure tracks the current state, addressing information, and communication
+/// channels for a single FMTP connection.
 #[derive(Debug)]
 pub struct ConnectionState {
+    /// The current state of the protocol state machine for this connection
     pub state: State,
+    /// The remote address of the connected peer, if established
     pub remote_addr: Option<SocketAddr>,
+    /// Channel for sending commands to the connection
     pub command_tx: Sender<UserCommand>,
+    /// Channel for receiving messages from the connection
     pub msg_rx: Receiver<FmtpMessage>,
 }
 
+/// An FMTP server that manages multiple connections
+///
+/// This struct implements a server that can accept multiple FMTP connections
+/// and manage them concurrently. It supports both accepting incoming connections
+/// and initiating outbound connections when configured as a client.
+///
+/// # Examples
+///
+/// ```
+/// use fmtp_tokio::Server;
+/// use fmtp_core::{Config, ConnectionConfig, FmtpIdentifier, Role, Target};
+/// use std::time::Duration;
+///
+/// #[tokio::main]
+/// async fn main() -> anyhow::Result<()> {
+///     let config = Config {
+///         connections: [
+///             (
+///                 "fmtp".to_string(),
+///                 ConnectionConfig {
+///                     connect_retry_timer: None,
+///                     role: Role::Server,
+///                     initial_target: Target::DataReady,
+///                     remote_addresses: vec!["127.0.0.1:8500".parse().unwrap()],
+///                     local_id: FmtpIdentifier::new("SERVER")?,
+///                     remote_id: FmtpIdentifier::new(b"CLIENT")?,
+///                     ti: Duration::from_secs(30),
+///                     ts: Duration::from_secs(15),
+///                     tr: Duration::from_secs(40),
+///                 },
+///             ),
+///             (
+///                 "fmtp-client".to_string(),
+///                 ConnectionConfig {
+///                     connect_retry_timer: Some(Duration::from_secs(5)),
+///                     role: Role::Client,
+///                     initial_target: Target::DataReady,
+///                     remote_addresses: vec!["127.0.0.1:8500".parse().unwrap()],
+///                     remote_id: FmtpIdentifier::new(b"SERVER")?,
+///                     local_id: FmtpIdentifier::new(b"CLIENT")?,
+///                     ti: Duration::from_secs(30),
+///                     ts: Duration::from_secs(15),
+///                     tr: Duration::from_secs(40),
+///                 },
+///             ),
+///         ]
+///         .into(),
+///         bind_address: Some("127.0.0.1:8500".parse().unwrap()),
+///         server_ti: Some(Duration::from_secs(30)),
+///     };
+///
+///     let server = Server::new(config);
+///
+///     // Start the server and wait for connections
+///     // server.run().await?.join_all().await;
+///
+///     Ok(())
+/// }
+/// ```
 pub struct Server {
     config: Config,
     connections: Arc<Mutex<HashMap<String, ConnectionState>>>,
 }
 
 impl Server {
+    /// Creates a new FMTP server with the given configuration
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - The FMTP configuration for this server
     #[must_use]
     pub fn new(config: Config) -> Self {
         Self {
@@ -39,6 +111,21 @@ impl Server {
         }
     }
 
+    /// Starts the FMTP server
+    ///
+    /// This method starts listening for incoming connections if configured as a server,
+    /// and initiates outbound connections if any client roles are configured.
+    ///
+    /// # Returns
+    ///
+    /// Returns a `JoinSet` containing the handles to all spawned tasks. The caller can
+    /// use this to wait for all connections to complete.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if:
+    /// - The server is configured with a server role but no bind address
+    /// - The TCP listener cannot be created
     pub async fn run(&self) -> anyhow::Result<JoinSet<anyhow::Result<()>>> {
         let mut handles = JoinSet::new();
         let connections = self.connections.clone();
@@ -165,7 +252,7 @@ impl Server {
                 },
             );
 
-            handles.spawn(async move { client.run(None).await });
+            handles.spawn(async move { client.run_client().await });
 
             let id = id.clone();
             spawn(async move {

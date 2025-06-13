@@ -1,3 +1,45 @@
+//! FMTP HTTP server crate.
+//!
+//! This crate provides an HTTP API to send data and control commands to FMTP connections.
+//!
+//! # HTTP API Routes
+//!
+//! ## List All Connections
+//! `GET /`
+//!
+//! Returns a debug representation of all active FMTP connections.
+//!
+//! ## Get Connection Details
+//! `GET /{conn}`
+//!
+//! Returns details about a specific connection identified by `conn`.
+//!
+//! ## Send Data
+//! `POST /{conn}`
+//!
+//! Sends operational data over the specified FMTP connection. The request body
+//! contains the raw data to be sent.
+//!
+//! ## Start Association
+//! `POST /{conn}/associate`
+//!
+//! Initiates an FMTP association on the specified connection (MT-ASSOC service primitive).
+//!
+//! ## Stop Association
+//! `POST /{conn}/shutdown`
+//!
+//! Stops an FMTP association without closing the underlying connection (MT-STOP service primitive).
+//!
+//! ## Disconnect
+//! `POST /{conn}/disconnect`
+//!
+//! Stops the FMTP association and closes the underlying connection (MT-DIS service primitive).
+//!
+//! # Error Responses
+//!
+//! - `404 Not Found`: Returned when the specified connection does not exist
+//! - `500 Internal Server Error`: Returned when a command cannot be sent to the connection
+
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use axum::{

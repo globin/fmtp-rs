@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use anyhow::anyhow;
-use tracing::{debug, trace};
+use tracing::trace;
 use zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes, big_endian::U16};
 
 use crate::{Config, ConnectionConfig, FmtpIdentifier, FmtpMessage};
@@ -54,6 +54,7 @@ pub struct FmtpPacketHeader {
 /// The data length is specified in the header and must not exceed 10240 bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FmtpPacket {
+    /// 5 byte header containing protocol version, reserved field, length, and type
     pub header: FmtpPacketHeader,
     data: Vec<u8>,
 }
@@ -70,7 +71,8 @@ impl FmtpPacket {
     /// * `typ` - The packet [`FmtpType`]
     /// * `data` - The packet data
     ///
-    /// Returns [`Err`] if the data length exceeds the maximum size
+    /// # Errors
+    /// Returns an [`Err`] if the data is empty or exceeds the maximum size of 10240 bytes.
     pub fn new(typ: FmtpType, data: impl Into<Vec<u8>>) -> anyhow::Result<Self> {
         let data = data.into();
 
@@ -103,7 +105,8 @@ impl FmtpPacket {
     /// # Arguments
     /// * `bytes` - The raw packet bytes
     ///
-    /// Returns `Err` if the header is malformed or the data length exceeds the maximum size.
+    /// # Errors
+    /// Returns an [`Err`] if the header is malformed or the data length exceeds the maximum size
     pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
         let (header, rest) = FmtpPacketHeader::try_ref_from_prefix(bytes)
             .map_err(|e| anyhow!("Could not decode packet: {e}"))?;
@@ -121,6 +124,7 @@ impl FmtpPacket {
     }
 
     /// Creates a packet from an FMTP message.
+    #[expect(clippy::missing_panics_doc, reason = "length checked in FmtpMessage")]
     pub fn from_msg(msg: FmtpMessage) -> Self {
         // encoding and length is safe
         let (typ, bytes) = match msg {
@@ -128,12 +132,15 @@ impl FmtpPacket {
             FmtpMessage::Operator(bytes) => (FmtpType::Operator, bytes),
         };
         let packet = FmtpPacket::new(typ, bytes).unwrap();
-        debug!("Data packet: {packet}");
+        trace!("Data packet: {packet}");
 
         packet
     }
 
     /// Tries to convert the packet into an FMTP message.
+    ///
+    /// # Errors
+    /// Returns an [`Err`] if the packet type is `Identification` or `System`, as these cannot be converted to an `FmtpMessage`.
     pub fn try_to_msg(self) -> anyhow::Result<FmtpMessage> {
         let msg = match self.header.typ {
             FmtpType::Operational => FmtpMessage::Operational(self.data),
@@ -153,29 +160,33 @@ impl FmtpPacket {
     /// # Arguments
     /// * `local_id` - The local identifier
     /// * `remote_id` - The remote identifier
+    #[expect(
+        clippy::missing_panics_doc,
+        reason = "length checked in FmtpIdentifier"
+    )]
     pub fn handshake(local_id: &FmtpIdentifier, remote_id: &FmtpIdentifier) -> Self {
         let mut payload = (**local_id).to_owned();
         payload.push(b'-');
         payload.extend(&**remote_id);
         // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::Identification, payload).unwrap();
-        debug!("Handshake packet: {packet}");
+        trace!("Handshake packet: {packet}");
 
         packet
     }
     /// Creates a handshake acceptance packet.
+    #[expect(clippy::missing_panics_doc, reason = "length is static")]
     pub fn accept() -> Self {
-        // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::Identification, Self::ACCEPT).unwrap();
-        debug!("Handshake accept packet: {packet}");
+        trace!("Handshake accept packet: {packet}");
 
         packet
     }
     /// Creates a handshake rejection packet.
+    #[expect(clippy::missing_panics_doc, reason = "length is static")]
     pub fn reject() -> Self {
-        // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::Identification, Self::REJECT).unwrap();
-        debug!("Handshake reject packet: {packet}");
+        trace!("Handshake reject packet: {packet}");
 
         packet
     }
@@ -226,26 +237,26 @@ impl FmtpPacket {
 
     // TYP == System
     /// Creates a startup packet.
+    #[expect(clippy::missing_panics_doc, reason = "length is static")]
     pub fn startup() -> Self {
-        // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::System, Self::STARTUP).unwrap();
-        debug!("Startup packet: {packet}");
+        trace!("Startup packet: {packet}");
 
         packet
     }
     /// Creates a shutdown packet.
+    #[expect(clippy::missing_panics_doc, reason = "length is static")]
     pub fn shutdown() -> Self {
-        // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::System, Self::SHUTDOWN).unwrap();
-        debug!("Shutdown packet: {packet}");
+        trace!("Shutdown packet: {packet}");
 
         packet
     }
     /// Creates a heartbeat packet.
+    #[expect(clippy::missing_panics_doc, reason = "length is static")]
     pub fn heartbeat() -> Self {
-        // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::System, Self::HEARTBEAT).unwrap();
-        debug!("Heartbeat packet: {packet}");
+        trace!("Heartbeat packet: {packet}");
 
         packet
     }

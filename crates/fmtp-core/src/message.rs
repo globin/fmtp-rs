@@ -22,9 +22,8 @@ impl FmtpMessage {
     /// # Arguments
     /// * `data` - The message payload. Must be 10240 bytes or less.
     ///
-    /// # Returns
-    /// * `Ok(FmtpMessage::Operational)` if the payload size is valid
-    /// * `Err` if the payload exceeds the maximum size
+    /// # Errors
+    /// Returns an error if the payload exceeds the maximum size.
     pub fn operational(data: Vec<u8>) -> anyhow::Result<Self> {
         // FIXME encoding?
         if data.len() > 10240 {
@@ -39,9 +38,8 @@ impl FmtpMessage {
     /// # Arguments
     /// * `data` - The message payload. Must be 10240 bytes or less.
     ///
-    /// # Returns
-    /// * `Ok(FmtpMessage::Operator)` if the payload size is valid
-    /// * `Err` if the payload exceeds the maximum size
+    /// # Errors
+    /// Returns an error if the payload exceeds the maximum size.
     pub fn operator(data: Vec<u8>) -> anyhow::Result<Self> {
         // FIXME encoding?
         if data.len() > 10240 {

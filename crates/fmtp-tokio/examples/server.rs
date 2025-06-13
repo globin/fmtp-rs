@@ -1,3 +1,7 @@
+//! Example FMTP server using fmtp-tokio.
+//!
+//! This example demonstrates how to configure and run an FMTP server.
+
 use std::time::Duration;
 
 use fmtp_core::Config;
@@ -33,36 +37,22 @@ async fn main() -> anyhow::Result<()> {
                     role: Role::Server,
                     initial_target: Target::DataReady,
                     remote_addresses: vec!["127.0.0.1:8500".parse().unwrap()],
-                    local_id: FmtpIdentifier::new("SERVER".as_bytes())?,
-                    remote_id: FmtpIdentifier::new("CLIENT".as_bytes())?,
+                    local_id: FmtpIdentifier::new("SERVER")?,
+                    remote_id: FmtpIdentifier::new(b"CLIENT")?,
                     ti: Duration::from_secs(30),
                     ts: Duration::from_secs(15),
                     tr: Duration::from_secs(40),
                 },
             ),
             (
-                "fmtp-go".to_string(),
-                ConnectionConfig {
-                    connect_retry_timer: None,
-                    role: Role::Server,
-                    initial_target: Target::DataReady,
-                    remote_addresses: vec!["127.0.0.1:8500".parse().unwrap()],
-                    local_id: FmtpIdentifier::new("SERVER".as_bytes())?,
-                    remote_id: FmtpIdentifier::new("localID".as_bytes())?,
-                    ti: Duration::from_secs(30),
-                    ts: Duration::from_secs(15),
-                    tr: Duration::from_secs(40),
-                },
-            ),
-            (
-                "fmtp-go-client".to_string(),
+                "fmtp-client".to_string(),
                 ConnectionConfig {
                     connect_retry_timer: Some(Duration::from_secs(5)),
                     role: Role::Client,
                     initial_target: Target::DataReady,
                     remote_addresses: vec!["127.0.0.1:8500".parse().unwrap()],
-                    remote_id: FmtpIdentifier::new("SERVER".as_bytes())?,
-                    local_id: FmtpIdentifier::new("localID".as_bytes())?,
+                    remote_id: FmtpIdentifier::new(b"SERVER")?,
+                    local_id: FmtpIdentifier::new(b"CLIENT")?,
                     ti: Duration::from_secs(30),
                     ts: Duration::from_secs(15),
                     tr: Duration::from_secs(40),
