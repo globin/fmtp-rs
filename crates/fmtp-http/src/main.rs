@@ -50,7 +50,7 @@ use axum::{
     routing::{get, post},
 };
 use fmtp_core::{Config, ConnectionConfig, FmtpIdentifier, FmtpMessage, Role, Target, UserCommand};
-use fmtp_tokio::{ConnectionState, Server};
+use fmtp_tokio::{ConnectionState, Daemon};
 use tokio::{net::TcpListener, spawn, sync::Mutex};
 use tracing::{error, info, level_filters::LevelFilter};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt as _, util::SubscriberInitExt as _};
@@ -72,7 +72,7 @@ async fn main() -> anyhow::Result<()> {
         )
         .init();
 
-    let fmtp_server = Server::new(Config {
+    let fmtp_daemon = Daemon::new(Config {
         bind_address: Some("127.0.0.1:8500".parse()?),
         connections: [(
             "fmtp".to_string(),
@@ -91,10 +91,10 @@ async fn main() -> anyhow::Result<()> {
         .into(),
         server_ti: Some(Duration::from_secs(30)),
     });
-    let connections = fmtp_server.connections();
+    let connections = fmtp_daemon.connections();
 
     spawn(async move {
-        match fmtp_server.run().await {
+        match fmtp_daemon.run().await {
             Ok(handles) => handles.join_all().await.iter().for_each(|res| {
                 if let Err(e) = res {
                     error!("FMTP error: {e}");
@@ -102,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
                     info!("handle finished");
                 }
             }),
-            Err(e) => error!("FMTP server error: {e}"),
+            Err(e) => error!("FMTP daemon error: {e}"),
         }
         info!("FMTP finished");
     });

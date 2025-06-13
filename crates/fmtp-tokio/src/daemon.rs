@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::{Connection, connection::ConnectionEvent};
 
-/// Represents the state of a connection managed by the FMTP server
+/// Represents the state of a connection managed by the FMTP daemon
 ///
 /// This structure tracks the current state, addressing information, and communication
 /// channels for a single FMTP connection.
@@ -33,16 +33,16 @@ pub struct ConnectionState {
     pub msg_rx: Receiver<FmtpMessage>,
 }
 
-/// An FMTP server that manages multiple connections
+/// An FMTP daemon that manages multiple connections
 ///
-/// This struct implements a server that can accept multiple FMTP connections
+/// This struct implements a daemon that can accept multiple FMTP connections
 /// and manage them concurrently. It supports both accepting incoming connections
 /// and initiating outbound connections when configured as a client.
 ///
 /// # Examples
 ///
 /// ```
-/// use fmtp_tokio::Server;
+/// use fmtp_tokio::Daemon;
 /// use fmtp_core::{Config, ConnectionConfig, FmtpIdentifier, Role, Target};
 /// use std::time::Duration;
 ///
@@ -84,25 +84,25 @@ pub struct ConnectionState {
 ///         server_ti: Some(Duration::from_secs(30)),
 ///     };
 ///
-///     let server = Server::new(config);
+///     let daemon = Daemon::new(config);
 ///
-///     // Start the server and wait for connections
-///     // server.run().await?.join_all().await;
+///     // Start the daemon and wait for connections
+///     // daemon.run().await?.join_all().await;
 ///
 ///     Ok(())
 /// }
 /// ```
-pub struct Server {
+pub struct Daemon {
     config: Config,
     connections: Arc<Mutex<HashMap<String, ConnectionState>>>,
 }
 
-impl Server {
-    /// Creates a new FMTP server with the given configuration
+impl Daemon {
+    /// Creates a new FMTP daemon with the given configuration
     ///
     /// # Arguments
     ///
-    /// * `config` - The FMTP configuration for this server
+    /// * `config` - The FMTP configuration for the daemon
     #[must_use]
     pub fn new(config: Config) -> Self {
         Self {
@@ -111,7 +111,7 @@ impl Server {
         }
     }
 
-    /// Starts the FMTP server
+    /// Starts the FMTP daemon
     ///
     /// This method starts listening for incoming connections if configured as a server,
     /// and initiates outbound connections if any client roles are configured.
@@ -124,7 +124,7 @@ impl Server {
     /// # Errors
     ///
     /// Returns an error if:
-    /// - The server is configured with a server role but no bind address
+    /// - The daemon has connections configured as server role but no bind address
     /// - The TCP listener cannot be created
     pub async fn run(&self) -> anyhow::Result<JoinSet<anyhow::Result<()>>> {
         let mut handles = JoinSet::new();

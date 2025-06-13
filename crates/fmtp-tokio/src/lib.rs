@@ -12,12 +12,12 @@
 //!
 //! # Examples
 //!
-//! See the `examples` directory for complete examples of both a single client and a multi-connection server implementation.
+//! See the `examples` directory for complete examples of both a single client and a multi-connection daemon implementation.
 //!
 //! The `fmtp-http` crate provides a unidirectional HTTP interface to send messages to FMTP connections and is a further example for use of this crate.
 
 mod connection;
-mod server;
+mod daemon;
 
 pub use connection::{Connection, ConnectionEvent};
-pub use server::{ConnectionState, Server};
+pub use daemon::{ConnectionState, Daemon};
