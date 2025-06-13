@@ -9,7 +9,7 @@ use axum::{
 };
 use fmtp_core::{Config, ConnectionConfig, FmtpIdentifier, FmtpMessage, Role, Target, UserCommand};
 use fmtp_tokio::{ConnectionState, Server};
-use tokio::{net::TcpListener, spawn, sync::Mutex, time::Instant};
+use tokio::{net::TcpListener, spawn, sync::Mutex};
 use tracing::{error, info, level_filters::LevelFilter};
 use tracing_subscriber::{EnvFilter, layer::SubscriberExt as _, util::SubscriberInitExt as _};
 
@@ -105,7 +105,6 @@ async fn conn_data(
     if let Some(conn) = state.connections.lock().await.get(&conn_id) {
         conn.command_tx
             .send(UserCommand::Data {
-                now: Instant::now().into(),
                 msg: FmtpMessage::Operational(data.to_vec()),
             })
             .await
@@ -123,9 +122,7 @@ async fn conn_associate(
 ) -> Result<(), (StatusCode, String)> {
     if let Some(conn) = state.connections.lock().await.get(&conn_id) {
         conn.command_tx
-            .send(UserCommand::Startup {
-                now: Instant::now().into(),
-            })
+            .send(UserCommand::Startup)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
@@ -141,9 +138,7 @@ async fn conn_shutdown(
 ) -> Result<(), (StatusCode, String)> {
     if let Some(conn) = state.connections.lock().await.get(&conn_id) {
         conn.command_tx
-            .send(UserCommand::Shutdown {
-                now: Instant::now().into(),
-            })
+            .send(UserCommand::Shutdown)
             .await
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 

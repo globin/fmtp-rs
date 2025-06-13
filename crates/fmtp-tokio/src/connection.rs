@@ -54,9 +54,9 @@ impl Connection {
         {
             for addr in &remote_addresses {
                 self.inner.handle_with_context(
-                    &Event::UserCommand(UserCommand::Setup {
+                    &Event::LSetup {
                         id: connection.to_string(),
-                    }),
+                    },
                     &mut self.ctx,
                 );
                 debug!("Connecting socket: {addr}");
@@ -112,8 +112,21 @@ impl Connection {
     fn command_received(&mut self, command: Option<UserCommand>) -> bool {
         if let Some(cmd) = command {
             debug!("{:?}: handling mt-cmd: {cmd:?}", self.inner.id);
-            self.inner
-                .handle_with_context(&Event::UserCommand(cmd), &mut self.ctx);
+            let event = match cmd {
+                UserCommand::Data { msg } => Event::LData {
+                    now: Instant::now().into(),
+                    msg,
+                },
+                UserCommand::Shutdown => Event::LShutdown {
+                    now: Instant::now().into(),
+                },
+                UserCommand::Startup => Event::LStartup {
+                    now: Instant::now().into(),
+                },
+                UserCommand::Setup { id } => Event::LSetup { id },
+                UserCommand::Disconnect => Event::LDisconnect,
+            };
+            self.inner.handle_with_context(&event, &mut self.ctx);
             false
         } else {
             error!("MT-User command channel closed");
@@ -173,9 +186,9 @@ impl Connection {
                         }
                         State::Ready { tr: Tr(tr) } => {
                             if self.inner.target == Target::DataReady {
-                                self.inner.handle_with_context(&Event::UserCommand(UserCommand::Startup {
+                                self.inner.handle_with_context(&Event::LStartup {
                                     now: Instant::now().into(),
-                                }), &mut self.ctx);
+                                }, &mut self.ctx);
                             } else {
                                 sleep_until((*tr).into()).await;
                             }

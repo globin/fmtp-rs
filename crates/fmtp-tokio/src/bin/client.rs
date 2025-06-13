@@ -1,3 +1,4 @@
+use std::io::BufReader;
 use std::io::Read as _;
 use std::io::stdin;
 use std::thread;
@@ -16,7 +17,6 @@ use fmtp_tokio::Connection;
 use fmtp_tokio::ConnectionEvent;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::channel;
-use tokio::time::Instant;
 use tracing::debug;
 use tracing::info;
 use tracing::level_filters::LevelFilter;
@@ -85,7 +85,9 @@ async fn main() -> anyhow::Result<()> {
 
     debug!("spawning thread");
     thread::spawn(move || {
-        for byte in stdin().bytes() {
+        let stdin = stdin();
+        let reader = BufReader::new(stdin);
+        for byte in reader.bytes() {
             let command = byte?;
             debug!("received {command}");
             let tx = cmd_tx.clone();
@@ -94,17 +96,11 @@ async fn main() -> anyhow::Result<()> {
                 match command {
                     b'a' => {
                         debug!("sending startup");
-                        tx.send(UserCommand::Startup {
-                            now: Instant::now().into(),
-                        })
-                        .await?;
+                        tx.send(UserCommand::Startup).await?;
                     }
                     b's' => {
                         debug!("sending shutdown");
-                        tx.send(UserCommand::Shutdown {
-                            now: Instant::now().into(),
-                        })
-                        .await?;
+                        tx.send(UserCommand::Shutdown).await?;
                     }
                     b'd' => {
                         debug!("sending disconnect");
@@ -113,7 +109,6 @@ async fn main() -> anyhow::Result<()> {
                     b'o' => {
                         debug!("sending data");
                         tx.send(UserCommand::Data {
-                            now: Instant::now().into(),
                             msg: FmtpMessage::Operational(b"test".into()),
                         })
                         .await?;

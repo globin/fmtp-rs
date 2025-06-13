@@ -4,41 +4,58 @@ use anyhow::anyhow;
 
 use crate::{Config, FmtpMessage, FmtpPacket, FmtpType};
 
+/// Commands that can be issued by the user to control the FMTP connection.
+///
+/// These commands correspond to the MT-* service primitives defined in the
+/// EUROCONTROL FMTP specification.
 #[derive(Debug)]
 pub enum UserCommand {
-    /// The MT-User requests the establishment of an FMTP connection. (MT-CON)
+    /// Request to establish an FMTP connection (MT-CON service primitive).
+    ///
+    /// # Arguments
+    /// * `id` - The identifier of the connection configuration to use
     Setup { id: String },
-    /// The MT-User requests to stop an existing FMTP Association and
-    /// release the underlying connection. (MT-DIS)
+
+    /// Request to stop an existing FMTP Association and release the underlying
+    /// connection (MT-DIS service primitive).
     Disconnect,
-    /// The MT-User requests that an [`FmtpMessage`] (Operational or
-    /// Operator message type) be sent from the local to the remote
-    /// user over an existing FMTP Association. (MT-DATA)
-    Data { now: Instant, msg: FmtpMessage },
-    /// The MT-User requests to stop an existing FMTP
-    /// Association without releasing the underlying connection. (MT-STOP)
-    Shutdown { now: Instant },
-    /// The MT-User requests the establishment of an FMTP
-    /// Association over an established FMTP connection. (MT-ASSOC)
-    Startup { now: Instant },
+
+    /// Request to send a message over an existing FMTP Association (MT-DATA service primitive).
+    ///
+    /// # Arguments
+    /// * `msg` - The message to send
+    Data { msg: FmtpMessage },
+
+    /// Request to stop an existing FMTP Association without releasing the
+    /// underlying connection (MT-STOP service primitive).
+    Shutdown,
+
+    /// Request to establish an FMTP Association over an established
+    /// FMTP connection (MT-ASSOC service primitive).
+    Startup,
 }
 
-/// FMTP protocol events to advance the [`ConnectionState`] machine.
+/// Events that drive the FMTP connection state machine.
+///
+/// These events include both protocol events (received messages, timer expirations)
+/// and user commands. Each event may trigger state transitions and actions according
+/// to the FMTP state machine specification.
 #[derive(Debug)]
 pub enum Event {
-    /// A TCP transport connection establishment indication has
-    /// been received by the TCP client or server
+    /// A TCP transport connection establishment indication has been received
     RSetup { now: Instant },
-    /// A TCP transport connection release indication has been
-    /// received
+
+    /// A TCP transport connection release indication has been received
     RDisconnect,
-    /// A REJECT identification message has been received.
+
+    /// A REJECT identification message has been received
     RReject,
+
     /// An ACCEPT identification message has been received
-    /// from the remote peer.
+    /// from the remote peer
     RAccept { now: Instant },
     /// An identification message containing a valid identification
-    /// value for the peer MT-User has been received.
+    /// value for the peer MT-User has been received
     RIdValid { now: Instant, id: String },
     /// An identification message which fails the identification
     /// value validation test has been received.
@@ -46,20 +63,40 @@ pub enum Event {
     /// An [`FmtpMessage`] (Operational or Operator message
     /// type) has been received from the remote user
     RData { now: Instant, msg: FmtpMessage },
-    /// A HEARTBEAT message has been received from the remote system.
+    /// A HEARTBEAT message has been received from the remote system
     RHeartbeat { now: Instant },
-    /// A SHUTDOWN message has been received from the remote system.
+    /// A SHUTDOWN message has been received from the remote system
     RShutdown { now: Instant },
-    /// A STARTUP message has been received from the remote system.
+    /// A STARTUP message has been received from the remote system
     RStartup { now: Instant },
-    /// Expiry of timer Ti when an Identification message is expected.
+
+    /// Timer Ti (identification timeout) has expired
     TiTimeout,
-    /// Expiry of timer Tr when a HEARTBEAT or a data message is expected.
+
+    /// Timer Tr (response timeout) has expired
     TrTimeout { now: Instant },
-    /// Expiry of timer Ts for sending a HEARTBEAT to the remote user.
+
+    /// Timer Ts (send heartbeat timeout) has expired
     TsTimeout { now: Instant },
-    /// Manually triggered Events, or due to configured target or reconnection timeout
-    UserCommand(UserCommand),
+
+    /// Data transfer requested by user (MT-DATA service primitive).
+    LData { now: Instant, msg: FmtpMessage },
+
+    /// Shutdown requested by user (MT-STOP service primitive)
+    LShutdown { now: Instant },
+
+    /// Startup requested by user (MT-ASSOC service primitive)
+    LStartup { now: Instant },
+
+    /// Request to establish an FMTP connection (MT-CON service primitive).
+    ///
+    /// # Arguments
+    /// * `id` - The identifier of the connection configuration to use
+    LSetup { id: String },
+
+    /// Request to stop an existing FMTP Association and release the underlying
+    /// connection (MT-DIS service primitive).
+    LDisconnect,
 }
 impl Event {
     /// Translates an incoming [`FmtpPacket`] to an [`Event`], 0 bytes
@@ -79,7 +116,7 @@ impl Event {
         Ok(match packet.header.typ {
             FmtpType::Operational | FmtpType::Operator => Self::RData {
                 now,
-                msg: packet.to_msg()?,
+                msg: packet.try_to_msg()?,
             },
             FmtpType::Identification if packet.is_accept() => Self::RAccept { now },
             FmtpType::Identification if packet.is_reject() => Self::RReject,

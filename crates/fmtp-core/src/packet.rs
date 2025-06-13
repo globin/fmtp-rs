@@ -6,47 +6,71 @@ use zerocopy::{Immutable, IntoBytes, KnownLayout, TryFromBytes, big_endian::U16}
 
 use crate::{Config, ConnectionConfig, FmtpIdentifier, FmtpMessage};
 
+/// FMTP protocol version. (always 2 in this implementation)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoBytes, KnownLayout, Immutable, TryFromBytes)]
 #[repr(u8)]
 enum FmtpVersion {
     X02 = 0x02,
 }
 
+/// Reserved field in FMTP packet header. (always 0 in this implementation)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, IntoBytes, KnownLayout, Immutable, TryFromBytes)]
 #[repr(u8)]
 enum FmtpReserved {
     X00 = 0x00,
 }
 
+/// FMTP packet type.
 #[repr(u8)]
 #[derive(Copy, Clone, Debug, PartialEq, Eq, IntoBytes, KnownLayout, Immutable, TryFromBytes)]
 pub enum FmtpType {
+    /// Operational message packet (e.g. OLDI messages)
     Operational = 1,
+    /// Operator message packet (operator communication)
     Operator,
+    /// Identification packet (connection handshaking)
     Identification,
+    /// System packet (protocol control)
     System,
 }
 
+/// FMTP packet header structure.
 #[derive(Clone, Debug, PartialEq, Eq, IntoBytes, KnownLayout, Immutable, TryFromBytes)]
 #[repr(C, packed)]
 pub struct FmtpPacketHeader {
+    /// (1 byte) Protocol version
     version: FmtpVersion,
+    /// (1 byte) Reserved field, must be 0
     _reserved: FmtpReserved,
+    /// (2 bytes) Length of the packet data in big-endian
     length: U16,
+    /// (1 byte) Packet type
     pub typ: FmtpType,
 }
 
+/// A complete FMTP packet.
+///
+/// An FMTP packet consists of a 5-byte header followed by variable-length data.
+/// The data length is specified in the header and must not exceed 10240 bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FmtpPacket {
     pub header: FmtpPacketHeader,
     data: Vec<u8>,
 }
+
 impl FmtpPacket {
     const SHUTDOWN: &[u8] = b"00";
     const STARTUP: &[u8] = b"01";
     const HEARTBEAT: &[u8] = b"03";
     const ACCEPT: &[u8] = b"ACCEPT";
     const REJECT: &[u8] = b"REJECT";
+    /// Creates a new FMTP packet.
+    ///
+    /// # Arguments
+    /// * `typ` - The packet [`FmtpType`]
+    /// * `data` - The packet data
+    ///
+    /// Returns [`Err`] if the data length exceeds the maximum size
     pub fn new(typ: FmtpType, data: impl Into<Vec<u8>>) -> anyhow::Result<Self> {
         let data = data.into();
 
@@ -66,6 +90,7 @@ impl FmtpPacket {
         })
     }
 
+    /// Converts the packet into a byte vector.
     #[must_use]
     pub fn into_bytes(self) -> Vec<u8> {
         let mut packet = self.header.as_bytes().to_owned();
@@ -73,6 +98,12 @@ impl FmtpPacket {
         packet
     }
 
+    /// Creates a packet from raw bytes.
+    ///
+    /// # Arguments
+    /// * `bytes` - The raw packet bytes
+    ///
+    /// Returns `Err` if the header is malformed or the data length exceeds the maximum size.
     pub fn from_bytes(bytes: &[u8]) -> anyhow::Result<Self> {
         let (header, rest) = FmtpPacketHeader::try_ref_from_prefix(bytes)
             .map_err(|e| anyhow!("Could not decode packet: {e}"))?;
@@ -80,7 +111,8 @@ impl FmtpPacket {
         if header.length > 10240 {
             return Err(anyhow!("Payload must be of size 10240 bytes or less."));
         }
-        //
+
+        // TODO check payload encoding
         // FIXME copy-less ref
         Ok(FmtpPacket {
             header: header.clone(),
@@ -88,6 +120,7 @@ impl FmtpPacket {
         })
     }
 
+    /// Creates a packet from an FMTP message.
     pub fn from_msg(msg: FmtpMessage) -> Self {
         // encoding and length is safe
         let (typ, bytes) = match msg {
@@ -99,7 +132,9 @@ impl FmtpPacket {
 
         packet
     }
-    pub fn to_msg(self) -> anyhow::Result<FmtpMessage> {
+
+    /// Tries to convert the packet into an FMTP message.
+    pub fn try_to_msg(self) -> anyhow::Result<FmtpMessage> {
         let msg = match self.header.typ {
             FmtpType::Operational => FmtpMessage::Operational(self.data),
             FmtpType::Operator => FmtpMessage::Operator(self.data),
@@ -113,6 +148,11 @@ impl FmtpPacket {
     }
 
     // TYP == Identification
+    /// Creates a handshake packet for connection establishment.
+    ///
+    /// # Arguments
+    /// * `local_id` - The local identifier
+    /// * `remote_id` - The remote identifier
     pub fn handshake(local_id: &FmtpIdentifier, remote_id: &FmtpIdentifier) -> Self {
         let mut payload = (**local_id).to_owned();
         payload.push(b'-');
@@ -123,6 +163,7 @@ impl FmtpPacket {
 
         packet
     }
+    /// Creates a handshake acceptance packet.
     pub fn accept() -> Self {
         // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::Identification, Self::ACCEPT).unwrap();
@@ -130,6 +171,7 @@ impl FmtpPacket {
 
         packet
     }
+    /// Creates a handshake rejection packet.
     pub fn reject() -> Self {
         // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::Identification, Self::REJECT).unwrap();
@@ -138,6 +180,7 @@ impl FmtpPacket {
         packet
     }
     #[must_use]
+    /// Checks if the packet is a valid handshake packet and returns the associated connection ID if so.
     pub fn check_handshake<'config>(
         &self,
         config: &'config Config,
@@ -171,15 +214,18 @@ impl FmtpPacket {
         }
     }
     #[must_use]
+    /// Checks if the packet is a handshake acceptance packet.
     pub fn is_accept(&self) -> bool {
         self.header.typ == FmtpType::Identification && self.data == Self::ACCEPT
     }
     #[must_use]
+    /// Checks if the packet is a handshake rejection packet.
     pub fn is_reject(&self) -> bool {
         self.header.typ == FmtpType::Identification && self.data == Self::REJECT
     }
 
     // TYP == System
+    /// Creates a startup packet.
     pub fn startup() -> Self {
         // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::System, Self::STARTUP).unwrap();
@@ -187,6 +233,7 @@ impl FmtpPacket {
 
         packet
     }
+    /// Creates a shutdown packet.
     pub fn shutdown() -> Self {
         // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::System, Self::SHUTDOWN).unwrap();
@@ -194,6 +241,7 @@ impl FmtpPacket {
 
         packet
     }
+    /// Creates a heartbeat packet.
     pub fn heartbeat() -> Self {
         // encoding and length is safe
         let packet = FmtpPacket::new(FmtpType::System, Self::HEARTBEAT).unwrap();
@@ -202,14 +250,17 @@ impl FmtpPacket {
         packet
     }
     #[must_use]
+    /// Checks if the packet is a system startup packet.
     pub fn is_startup(&self) -> bool {
         self.header.typ == FmtpType::System && self.data == Self::STARTUP
     }
     #[must_use]
+    /// Checks if the packet is a system shutdown packet.
     pub fn is_shutdown(&self) -> bool {
         self.header.typ == FmtpType::System && self.data == Self::SHUTDOWN
     }
     #[must_use]
+    /// Checks if the packet is a system heartbeat packet.
     pub fn is_heartbeat(&self) -> bool {
         self.header.typ == FmtpType::System && self.data == Self::HEARTBEAT
     }

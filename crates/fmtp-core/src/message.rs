@@ -1,13 +1,30 @@
+use anyhow::anyhow;
 use std::fmt::Display;
 
-use anyhow::anyhow;
-
+/// An FMTP message that can be sent over an established connection.
+///
+/// FMTP supports two types of messages:
+/// - Operational: Used for normal operational data transfer
+/// - Operator: Used for operator-to-operator communication
+///
+/// Both message types have a maximum payload size of 10240 bytes.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum FmtpMessage {
+    /// An operational message containing flight data
     Operational(Vec<u8>),
+    /// An operator message for communication between operators
     Operator(Vec<u8>),
 }
+
 impl FmtpMessage {
+    /// Creates a new operational message.
+    ///
+    /// # Arguments
+    /// * `data` - The message payload. Must be 10240 bytes or less.
+    ///
+    /// # Returns
+    /// * `Ok(FmtpMessage::Operational)` if the payload size is valid
+    /// * `Err` if the payload exceeds the maximum size
     pub fn operational(data: Vec<u8>) -> anyhow::Result<Self> {
         // FIXME encoding?
         if data.len() > 10240 {
@@ -17,6 +34,14 @@ impl FmtpMessage {
         Ok(Self::Operational(data))
     }
 
+    /// Creates a new operator message.
+    ///
+    /// # Arguments
+    /// * `data` - The message payload. Must be 10240 bytes or less.
+    ///
+    /// # Returns
+    /// * `Ok(FmtpMessage::Operator)` if the payload size is valid
+    /// * `Err` if the payload exceeds the maximum size
     pub fn operator(data: Vec<u8>) -> anyhow::Result<Self> {
         // FIXME encoding?
         if data.len() > 10240 {
