@@ -32,7 +32,7 @@ async fn main() -> anyhow::Result<()> {
                     connect_retry_timer: None,
                     role: Role::Server,
                     initial_target: Target::DataReady,
-                    remote_addresses: vec!["127.0.0.1:8501".parse().unwrap()],
+                    remote_addresses: vec!["127.0.0.1:8500".parse().unwrap()],
                     local_id: FmtpIdentifier::new("SERVER".as_bytes())?,
                     remote_id: FmtpIdentifier::new("CLIENT".as_bytes())?,
                     ti: Duration::from_secs(30),
@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
                     connect_retry_timer: Some(Duration::from_secs(5)),
                     role: Role::Client,
                     initial_target: Target::DataReady,
-                    remote_addresses: vec!["127.0.0.1:8501".parse().unwrap()],
+                    remote_addresses: vec!["127.0.0.1:8500".parse().unwrap()],
                     remote_id: FmtpIdentifier::new("SERVER".as_bytes())?,
                     local_id: FmtpIdentifier::new("localID".as_bytes())?,
                     ti: Duration::from_secs(30),
@@ -70,7 +70,7 @@ async fn main() -> anyhow::Result<()> {
             ),
         ]
         .into(),
-        bind_address: Some("127.0.0.1:8501".parse().unwrap()),
+        bind_address: Some("127.0.0.1:8500".parse().unwrap()),
         server_ti: Some(Duration::from_secs(30)),
     };
 

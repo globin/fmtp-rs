@@ -54,7 +54,6 @@ async fn main() -> anyhow::Result<()> {
                     tr: Duration::from_secs(40),
                     role: Role::Client,
                     initial_target: Target::DataReady,
-                    // connect_retry_timer: None,
                     connect_retry_timer: Some(Duration::from_secs(3)),
                 },
             )]
@@ -115,6 +114,7 @@ async fn main() -> anyhow::Result<()> {
                     }
                     _ => debug!("other"),
                 }
+
                 Ok::<_, anyhow::Error>(())
             })?;
         }
@@ -123,5 +123,7 @@ async fn main() -> anyhow::Result<()> {
         Ok::<_, anyhow::Error>(())
     });
 
-    client.run(None).await
+    client.run(None).await?;
+
+    Ok(())
 }
