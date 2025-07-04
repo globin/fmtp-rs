@@ -40,7 +40,7 @@
 //! - `404 Not Found`: Returned when the specified connection does not exist
 //! - `500 Internal Server Error`: Returned when a command cannot be sent to the connection
 
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, net::SocketAddr, path::PathBuf, sync::Arc};
 
 use axum::{
     Router,
@@ -49,7 +49,8 @@ use axum::{
     http::StatusCode,
     routing::{get, post},
 };
-use fmtp_core::{Config, ConnectionConfig, FmtpIdentifier, FmtpMessage, Role, Target, UserCommand};
+use clap::Parser;
+use fmtp_core::{Config, FmtpMessage, UserCommand};
 use fmtp_tokio::{ConnectionState, Daemon};
 use tokio::{net::TcpListener, spawn, sync::Mutex};
 use tracing::{error, info, level_filters::LevelFilter};
@@ -58,6 +59,16 @@ use tracing_subscriber::{EnvFilter, layer::SubscriberExt as _, util::SubscriberI
 #[derive(Clone)]
 struct AppState {
     connections: Arc<Mutex<HashMap<String, ConnectionState>>>,
+}
+
+#[derive(Parser, Debug)]
+#[command(version, about, long_about)]
+struct CliFlags {
+    #[arg(short, long)]
+    connection_config: PathBuf,
+
+    #[arg(short = 'b', long, default_value = "[::1]:8000")]
+    http_bind: SocketAddr,
 }
 
 #[tokio::main]
@@ -71,26 +82,10 @@ async fn main() -> anyhow::Result<()> {
                 .from_env_lossy(),
         )
         .init();
+    let args = CliFlags::parse();
+    let config = Config::load_toml(args.connection_config)?;
 
-    let fmtp_daemon = Daemon::new(Config {
-        bind_address: Some("127.0.0.1:8500".parse()?),
-        connections: [(
-            "fmtp".to_string(),
-            ConnectionConfig {
-                local_id: FmtpIdentifier::new(b"SERVER")?,
-                remote_id: FmtpIdentifier::new(b"CLIENT")?,
-                ti: Duration::from_secs(30),
-                tr: Duration::from_secs(40),
-                ts: Duration::from_secs(15),
-                remote_addresses: vec!["127.0.0.1:8500".parse()?],
-                role: Role::Server,
-                initial_target: Target::DataReady,
-                connect_retry_timer: None,
-            },
-        )]
-        .into(),
-        server_ti: Some(Duration::from_secs(30)),
-    });
+    let fmtp_daemon = Daemon::new(config);
     let connections = fmtp_daemon.connections();
 
     spawn(async move {
@@ -118,7 +113,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/{conn}/disconnect", post(conn_disconnect))
         .with_state(state);
 
-    let listener = TcpListener::bind("127.0.0.1:8000").await.unwrap();
+    info!("HTTP server binding to {}", args.http_bind);
+    let listener = TcpListener::bind(args.http_bind).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 
     Ok(())
