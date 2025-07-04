@@ -1,0 +1,21 @@
+bind_address = "127.0.0.1:8500"
+
+[connections.fmtp]
+local_id = "SERVER"
+remote_id = "CLIENT"
+ti = 30
+tr = 40
+ts = 15
+remote_addresses = []
+role = "Server"
+initial_target = "DataReady"
+
+[connections.fmtp-client]
+local_id = "CLIENT"
+remote_id = "SERVER"
+ti = 30
+tr = 40
+ts = 15
+remote_addresses = ["127.0.0.1:8500"]
+role = "Client"
+initial_target = "DataReady"

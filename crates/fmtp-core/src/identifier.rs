@@ -1,6 +1,7 @@
-use std::ops::Deref;
+use std::{fmt, ops::Deref};
 
 use anyhow::anyhow;
+use serde::{Deserialize, de::Visitor};
 
 /// An FMTP identifier used for connection handshaking.
 ///
@@ -40,5 +41,33 @@ impl Deref for FmtpIdentifier {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for FmtpIdentifier {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let bytes = deserializer.deserialize_bytes(BytesVisitor)?;
+        FmtpIdentifier::new(bytes).map_err(serde::de::Error::custom)
+    }
+}
+
+struct BytesVisitor;
+impl Visitor<'_> for BytesVisitor {
+    type Value = Vec<u8>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        formatter.write_str(
+            "FMTP identifier must be 0<n<=32 bytes long and only contain bytes in the ASCII range",
+        )
+    }
+
+    fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+    where
+        E: serde::de::Error,
+    {
+        Ok(v.as_bytes().to_vec())
     }
 }
